@@ -1,8 +1,9 @@
 import express from 'express';
 import path from 'path';
 import mongoose from 'mongoose';
-import { name } from 'ejs';
+// import { name } from 'ejs';
 import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
 
 mongoose
   .connect('mongodb://127.0.0.1:27017', {
@@ -11,12 +12,12 @@ mongoose
   .then(() => console.log('Database connected'))
   .catch((e) => console.log(e));
 
-const messageSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema({
   name: String,
   email: String,
 });
 
-const Message = mongoose.model('Message', messageSchema);
+const User = mongoose.model('User', userSchema);
 
 const app = express();
 
@@ -24,21 +25,42 @@ app.use(express.static(path.join(path.resolve(), 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-const users = [];
-
 app.set('view engine', 'ejs');
 
-app.get('/', (req, res) => {
+const isAuthenticated = async (req, res, next) => {
   const { token } = req.cookies;
   if (token) {
-    res.render('logout');
+    const decoded = jwt.verify(token, 'ijfhaiuhfiaihfealkjelf');
+    req.user = await User.findById(decoded._id);
+    next();
   } else {
     res.render('login');
   }
+};
+
+app.get('/', isAuthenticated, (req, res) => {
+  console.log(req.user);
+  res.render('logout', { name: req.user.name });
 });
 
-app.post('/login', (req, res) => {
-  res.cookie('token', 'iamin', {
+app.get('/register', (req, res) => {
+  res.render('register');
+});
+
+app.post('/login', async (req, res) => {
+  const { name, email } = req.body;
+  let user = await User.findOne({ email });
+  if (!user) {
+    return res.redirect('/register');
+  }
+  user = await User.create({
+    name,
+    email,
+  });
+
+  const token = jwt.sign({ _id: user._id }, 'ijfhaiuhfiaihfealkjelf');
+
+  res.cookie('token', token, {
     httpOnly: true,
     expires: new Date(Date.now() + 60 * 1000),
   });
@@ -52,32 +74,6 @@ app.get('/logout', (req, res) => {
   });
 
   res.redirect('/');
-});
-
-app.get('/add', async (req, res) => {
-  await Message.create({
-    name: 'Chayan',
-    email: 'Chayanp188@gmail.com',
-  }).then(() => {
-    res.send('Nice');
-  });
-});
-
-app.get('/success', (req, res) => {
-  res.render('success');
-});
-
-app.post('/contact', async (req, res) => {
-  const { name, email } = req.body;
-  await Message.create({ name: name, email: email });
-
-  res.redirect('/success');
-});
-
-app.get('/users', (req, res) => {
-  res.json({
-    users,
-  });
 });
 
 app.listen(3000, () => {
