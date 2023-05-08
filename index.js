@@ -40,7 +40,6 @@ const isAuthenticated = async (req, res, next) => {
 };
 
 app.get('/', isAuthenticated, (req, res) => {
-  console.log(req.user);
   res.render('logout', { name: req.user.name });
 });
 
@@ -57,7 +56,7 @@ app.post('/login', async (req, res) => {
 
   let user = await User.findOne({ email });
 
-  if (!user) res.redirect('/register');
+  if (!user) return res.redirect('/register');
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch)
@@ -78,7 +77,7 @@ app.post('/register', async (req, res) => {
     return res.redirect('/login');
   }
   const hashedPassword = await bcrypt.hash(password, 10);
-  
+
   user = await User.create({
     name,
     email,
